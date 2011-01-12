@@ -1,0 +1,22 @@
+=== 1.0.0 (March 21, 2002)
+
+* Initial public release
+
+=== 1.1.0 (~2003)
+
+* Remove limited compilation note from README
+* Additional samples
+
+=== 1.5.0 (~2008)
+
+* Replace char* with new pweeString type to improve performance
+* Improve libxml build check
+* Change strlen/strdup to sizeof for efficiency
+* Minor tweaks
+* Delete Makefile.in
+* Add simple demo script
+* Add simple regression test
+
+---
+
+You can see the full commit history on GitHub: https://github.com/lovette/pwee/commits/
