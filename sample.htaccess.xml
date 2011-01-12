@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<Environments>
+	<Application domain="www.yourdomain.com" namespace="htaccess4">
+		<Server ip="192.168." interface="eth0">
+			<Constants>
+				<Constant name="c1" value="true" type="boolean"/>
+				<Constant name="c2" value="2" type="long" />
+				<Constant name="c3" value="test" type="string" />
+				<Constant name="c4" value="2.345" type="double" />
+			</Constants>
+			<Variables>
+				<Variable name="v1" value="10" type="long" />
+				<Variable name="v2" value="1.234" type="double" scope="executor" />
+				<Variable name="v3" value="true" type="boolean" />
+				<Variable name="v4" value="false" type="boolean" />
+				<Variable name="v5" value="lance" type="string" />
+				<Variable name="v6" value="lovette" scope="executor" />
+			</Variables>
+		</Server>
+	</Application>
+</Environments>
