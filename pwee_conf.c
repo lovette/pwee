@@ -39,29 +39,32 @@
 
 /* {{{ createVarNameWithPrefix
  */
-static char* createVarNameWithPrefix(const char* pszName, const char* pszPrefix, const char* pszSeparator)
+static void createVarNameWithPrefix(const pweeString* pstrName, const pweeString* pstrPrefix, const char* pszSeparator, int nSeparatorLen, pweeString* pstrVarName)
 {
-	char* pszVarName = NULL;
-
-	if ((NULL != pszPrefix) && *pszPrefix)
+	if ((NULL != PSTR_STRVAL_P(pstrPrefix)) && PSTR_STRLEN_P(pstrPrefix))
 	{
-		if ((NULL != pszSeparator) && *pszSeparator)
+		if ((NULL != pszSeparator) && nSeparatorLen)
 		{
-			pszVarName = malloc(strlen(pszPrefix) + strlen(pszSeparator) + strlen(pszName) + 1);
-			sprintf(pszVarName, "%s%s%s", pszPrefix, pszSeparator, pszName);
+			PSTR_STRLEN_P(pstrVarName) = PSTR_STRLEN_P(pstrPrefix) + nSeparatorLen + PSTR_STRLEN_P(pstrName);
+			PSTR_STRVAL_P(pstrVarName) = calloc(PSTR_STRLEN_P(pstrVarName) + 1, sizeof(char));
+			
+			PSTR_APPEND_PSTR(*pstrVarName, *pstrPrefix);
+			PSTR_APPEND_SZ(*pstrVarName, pszSeparator);
+			PSTR_APPEND_PSTR(*pstrVarName, *pstrName);
 		}
 		else
 		{
-			pszVarName = malloc(strlen(pszPrefix) + strlen(pszName) + 1);
-			sprintf(pszVarName, "%s%s", pszPrefix, pszName);
+			PSTR_STRLEN_P(pstrVarName) = PSTR_STRLEN_P(pstrPrefix) + PSTR_STRLEN_P(pstrName);
+			PSTR_STRVAL_P(pstrVarName) = calloc(PSTR_STRLEN_P(pstrVarName) + 1, sizeof(char));
+			
+			PSTR_APPEND_PSTR(*pstrVarName, *pstrPrefix);
+			PSTR_APPEND_PSTR(*pstrVarName, *pstrName);
 		}
 	}
 	else
 	{
-		pszVarName = strdup(pszName);
+		PSTR_SETVALUEL(*pstrVarName, PSTR_STRVAL_P(pstrName), PSTR_STRLEN_P(pstrName), 1);
 	}
-
-	return pszVarName;
 }
 /* }}} */
 
@@ -140,7 +143,7 @@ void confValue_ctor(confValue* pThis)
  */
 void confValue_dtor(confValue* pThis)
 {
-	SAFE_FREE(pThis->pszName);
+	PSTR_FREE(pThis->strValueName);
 
 	if (pThis->type == IS_STRING)
 		SAFE_FREE(pThis->value.str.val);
@@ -151,9 +154,9 @@ void confValue_dtor(confValue* pThis)
 
 /* {{{ confValue_setValue
  */
-int confValue_setValue(confValue* pThis, char* name, char* value, char* type, zend_bool bConstant, confApplication* pApp)
+int confValue_setValue(confValue* pThis, pweeString* pstrName, pweeString* pstrValue, const char* type, zend_bool bConstant, confApplication* pApp)
 {
-	if (NULL == name)
+	if (NULL == PSTR_STRVAL_P(pstrName))
 	{
 		if (bConstant)
 			php_error(E_ERROR, "Constant is not named");
@@ -162,7 +165,7 @@ int confValue_setValue(confValue* pThis, char* name, char* value, char* type, ze
 		return 0;
 	}
 
-	if (NULL == value)
+	if (NULL == PSTR_STRVAL_P(pstrValue))
 	{
 		if (bConstant)
 			php_error(E_ERROR, "Constant has no value");
@@ -171,39 +174,39 @@ int confValue_setValue(confValue* pThis, char* name, char* value, char* type, ze
 		return 0;
 	}
 
-	pThis->pszName = createVarNameWithPrefix(name, pApp->pszNamespace, "_");
+	createVarNameWithPrefix(pstrName, &(pApp->strNamespace), "_", sizeof("_")-1, &(pThis->strValueName));
 
 	if (bConstant && pApp->bUpperCaseConstants)
-		php_strtoupper(pThis->pszName, strlen(pThis->pszName));
+		php_strtoupper(PSTR_STRVAL(pThis->strValueName), PSTR_STRLEN(pThis->strValueName));
 
 	if ((NULL == type) || (0 == xmlStrcmp(type, "string")))
 	{
 		pThis->type = IS_STRING;
-		pThis->value.str.val = strdup(value);
-		pThis->value.str.len = strlen(value);
+		pThis->value.str.len = PSTR_STRLEN_P(pstrValue);
+		pThis->value.str.val = zend_strndup(PSTR_STRVAL_P(pstrValue), pThis->value.str.len);
 	}
 	else if (0 == xmlStrcmp(type, "boolean"))
 	{
 		pThis->type = IS_BOOL;
-		pThis->value.lval = ((0 == strcmp(value, "true")) || (0 == strcmp(value, "1")) || (0 == strcmp(value, "yes")) || (0 == strcmp(value, "on")));
+		pThis->value.lval = ((0 == strcmp(PSTR_STRVAL_P(pstrValue), "true")) || (0 == strcmp(PSTR_STRVAL_P(pstrValue), "1")) || (0 == strcmp(PSTR_STRVAL_P(pstrValue), "yes")) || (0 == strcmp(PSTR_STRVAL_P(pstrValue), "on")));
 	}
 	else if (0 == xmlStrcmp(type, "long"))
 	{
 		pThis->type = IS_LONG;
-		pThis->value.lval = strtol(value, NULL, 10);
+		pThis->value.lval = strtol(PSTR_STRVAL_P(pstrValue), NULL, 10);
 	}
 	else if (0 == xmlStrcmp(type, "double"))
 	{
 		pThis->type = IS_DOUBLE;
-		pThis->value.dval = strtod(value, NULL);
+		pThis->value.dval = strtod(PSTR_STRVAL_P(pstrValue), NULL);
 	}
 	
 	if (0 == pThis->type)
 	{
 		if (bConstant)
-			php_error(E_ERROR, "%s: %s is not a valid constant type", name, type);
+			php_error(E_ERROR, "%s: %s is not a valid constant type", PSTR_STRVAL_P(pstrName), type);
 		else
-			php_error(E_ERROR, "%s: %s is not a valid variable type", name, type);
+			php_error(E_ERROR, "%s: %s is not a valid variable type", PSTR_STRVAL_P(pstrName), type);
 		return 0;
 	}
 
@@ -217,20 +220,15 @@ int confValue_setValue(confValue* pThis, char* name, char* value, char* type, ze
  */
 int confValue_setValueFromZval(confValue* pThis, zval* pz)
 {
-	if (pz->type != pThis->type)
-	{
-		php_error(E_ERROR, "confValue_setValueFromZval variable types are not the same");
-		return 0;
-	}
-
 	switch (pz->type)
 	{
 	case IS_STRING:
 		SAFE_FREE(pThis->value.str.val);
-		pThis->value.str.val = strdup(pz->value.str.val);
+		pThis->value.str.val = zend_strndup(pz->value.str.val, pz->value.str.len);
 		pThis->value.str.len = pz->value.str.len;
 		break;
 	case IS_LONG:
+	case IS_RESOURCE:
 		pThis->value.lval = pz->value.lval;
 		break;
 	case IS_BOOL:
@@ -238,6 +236,9 @@ int confValue_setValueFromZval(confValue* pThis, zval* pz)
 		break;
 	case IS_DOUBLE:
 		pThis->value.dval = pz->value.dval;
+		break;
+	default:
+		php_error(E_ERROR, "confValue_setValueFromZval unrecognized variable type %d", pz->type);
 		break;
 	}
 
@@ -342,8 +343,8 @@ void confApplication_dtor(confApplication* pThis)
 	confValue* pValue = NULL;
 	confValue* pNextValue = NULL;
 
-	SAFE_FREE(pThis->pszName);
-	SAFE_FREE(pThis->pszNamespace);
+	PSTR_FREE(pThis->strAppName);
+	PSTR_FREE(pThis->strNamespace);
 
 	// Free variables
 	pValue = pThis->pVariables;
@@ -419,23 +420,28 @@ int confApplication_hasAnyVariables(confApplication* pThis)
 
 /* {{{ parseConstant
  */
-confValue* parseConstant(xmlDocPtr doc, xmlNodePtr cur, confApplication* pApp, char* pszParentPrefix)
+confValue* parseConstant(xmlDocPtr doc, xmlNodePtr cur, confApplication* pApp, const pweeString* strParentPrefix)
 {
-	char* pszVarName = NULL;
 	xmlChar* name = xmlGetProp(cur, "name");
 	xmlChar* value = xmlGetProp(cur, "value");
 	xmlChar* type = xmlGetProp(cur, "type");
 	confValue* pValue = confValue_new();
+	pweeString strVarName;
+	pweeString strPropName;
+	pweeString strPropValue;
 
-	pszVarName = createVarNameWithPrefix(name, pszParentPrefix, "_");
+	PSTR_SETVALUE(strPropName, name, 0);
+	PSTR_SETVALUE(strPropValue, value, 0);
 
-	if (!confValue_setValue(pValue, pszVarName, value, type, 1, pApp))
+	createVarNameWithPrefix(&strPropName, strParentPrefix, "_", sizeof("_")-1, &strVarName);
+
+	if (!confValue_setValue(pValue, &strVarName, &strPropValue, type, 1, pApp))
 	{
 		confValue_delete(&pValue);
 		pValue = NULL;
 	}
 
-	SAFE_FREE(pszVarName);
+	PSTR_FREE(strVarName);
 	SAFE_XMLFREE(name);
 	SAFE_XMLFREE(value);
 	SAFE_XMLFREE(type);
@@ -446,26 +452,31 @@ confValue* parseConstant(xmlDocPtr doc, xmlNodePtr cur, confApplication* pApp, c
 
 /* {{{ parseVariable
  */
-confValue* parseVariable(xmlDocPtr doc, xmlNodePtr cur, confApplication* pApp, const char* pszParentScope, const char* pszParentPrefix)
+confValue* parseVariable(xmlDocPtr doc, xmlNodePtr cur, confApplication* pApp, const pweeString* pstrParentScope, const pweeString* pstrParentPrefix)
 {
-	char* pszVarName = NULL;
 	xmlChar* name = xmlGetProp(cur, "name");
 	xmlChar* value = xmlGetProp(cur, "value");
 	xmlChar* type = xmlGetProp(cur, "type");
 	xmlChar* scope = xmlGetProp(cur, "scope");
 	confValue* pValue = confValue_new();
+	pweeString strVarName;
+	pweeString strPropName;
+	pweeString strPropValue;
 
-	pValue->scope = stringToScope((NULL != scope) ? (const char*)scope : pszParentScope);
+	PSTR_SETVALUE(strPropName, name, 0);
+	PSTR_SETVALUE(strPropValue, value, 0);
 
-	pszVarName = createVarNameWithPrefix(name, pszParentPrefix, "_");
+	pValue->scope = stringToScope((NULL != scope) ? (const char*)scope : PSTR_STRVAL_P(pstrParentScope));
 
-	if (!confValue_setValue(pValue, pszVarName, value, type, 0, pApp))
+	createVarNameWithPrefix(&strPropName, pstrParentPrefix, "_", sizeof("_")-1, &strVarName);
+
+	if (!confValue_setValue(pValue, &strVarName, &strPropValue, type, 0, pApp))
 	{
 		confValue_delete(&pValue);
 		pValue = NULL;
 	}
 
-	SAFE_FREE(pszVarName);
+	PSTR_FREE(strVarName);
 	SAFE_XMLFREE(name);
 	SAFE_XMLFREE(value);
 	SAFE_XMLFREE(type);
@@ -480,12 +491,15 @@ confValue* parseVariable(xmlDocPtr doc, xmlNodePtr cur, confApplication* pApp, c
 int parseConstants(xmlDocPtr doc, xmlNodePtr cur, confApplication* pApp)
 {
 	xmlChar* prefix = xmlGetProp(cur, "prefix");
+	pweeString strPropPrefix;
+
+	PSTR_SETVALUE(strPropPrefix, prefix, 0);
 
 	for (cur=cur->xmlChildrenNode; cur != NULL; cur=cur->next)
 	{
 		if (0 == xmlStrcmp(cur->name, "Constant"))
 		{
-			confValue* pValue = parseConstant(doc, cur, pApp, prefix);
+			confValue* pValue = parseConstant(doc, cur, pApp, &strPropPrefix);
 
 			if (NULL == pValue)
 				return FAILURE;
@@ -506,12 +520,17 @@ int parseVariables(xmlDocPtr doc, xmlNodePtr cur, confApplication* pApp)
 {
 	xmlChar* prefix = xmlGetProp(cur, "prefix");
 	xmlChar* scope = xmlGetProp(cur, "scope");
+	pweeString strPropPrefix;
+	pweeString strPropScope;
+
+	PSTR_SETVALUE(strPropPrefix, prefix, 0);
+	PSTR_SETVALUE(strPropScope, scope, 0);
 
 	for (cur=cur->xmlChildrenNode; cur != NULL; cur=cur->next)
 	{
 		if (0 == xmlStrcmp(cur->name, "Variable"))
 		{
-			confValue* pValue = parseVariable(doc, cur, pApp, scope, prefix);
+			confValue* pValue = parseVariable(doc, cur, pApp, &strPropScope, &strPropPrefix);
 
 			if (NULL == pValue)
 				return FAILURE;
@@ -587,8 +606,8 @@ confApplication* parseApplication(xmlDocPtr doc, xmlNodePtr cur)
 	xmlChar* ns = xmlGetProp(cur, "namespace");	
 	confApplication* pApp = confApplication_new();
 
-	pApp->pszName = (NULL != name) ? strdup(name) : strdup("");
-	pApp->pszNamespace = (NULL != ns) ? strdup(ns) : strdup("");
+	PSTR_SETVALUE(pApp->strAppName, (NULL != name) ? (char*)name : "", 1);
+	PSTR_SETVALUE(pApp->strNamespace, (NULL != ns) ? (char*)ns : "", 1);
 	pApp->bUpperCaseConstants = 1;
 
     for (cur=cur->xmlChildrenNode; cur != NULL; cur=cur->next)

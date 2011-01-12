@@ -39,7 +39,10 @@ int unregisterEnvironmentConstants(confEnvironment* pEnv);
 int addExecutorConstantsToEnvironment(confEnvironment* pEnv, int module_number);
 int saveEnvironmentVariables(HashTable* ht);
 void printEnvironmentInfo(confEnvironment* pEnv);
-int activateUserEnvironment(const char* pszFilename);
+int activateUserEnvironment(pweeString* pstrFilename);
+
+#define PHP_PWEE_EXTNAME "pwee"
+#define PHP_PWEE_EXTVER  "1.2"
 
 #define UUID_SUFFIX_LEN	4		// Largest four character value in base 36 is zzzz
 #define BASE36_ZZZZ		1679616 // Largest four character value in base 36 is 1679615
@@ -52,13 +55,14 @@ int activateUserEnvironment(const char* pszFilename);
 // To this end, Zend only estrdups the constant name and not the value. Note that MYREGISTER_STRING_CONSTANT
 // registers a pointer to the actual string value. Do not change the storage without updating the constant
 // or Zend will be pointing to an invalid memory location.
-#define MYREGISTER_LONG_CONSTANT(name, lval)    zend_register_long_constant((name), strlen(name)+1, (lval), (CONSTANT_FLAGS), module_number TSRMLS_CC)
-#define MYREGISTER_BOOL_CONSTANT(name, lval)    register_bool_constant((name), strlen(name)+1, (lval), (CONSTANT_FLAGS), module_number TSRMLS_CC)
-#define MYREGISTER_DOUBLE_CONSTANT(name, dval)  zend_register_double_constant((name), strlen(name)+1, (dval), (CONSTANT_FLAGS), module_number TSRMLS_CC)
-#define MYREGISTER_STRING_CONSTANT(name, str)   zend_register_string_constant((name), strlen(name)+1, (str), (CONSTANT_FLAGS), module_number TSRMLS_CC)
+#define MYREGISTER_LONG_CONSTANT(name, lval)			zend_register_long_constant(PSTR_STRVAL(name), PSTR_STRLEN(name)+1, (lval), (CONSTANT_FLAGS), module_number TSRMLS_CC)
+#define MYREGISTER_BOOL_CONSTANT(name, lval)			register_bool_constant(PSTR_STRVAL(name), PSTR_STRLEN(name)+1, (lval), (CONSTANT_FLAGS), module_number TSRMLS_CC)
+#define MYREGISTER_DOUBLE_CONSTANT(name, dval)			zend_register_double_constant(PSTR_STRVAL(name), PSTR_STRLEN(name)+1, (dval), (CONSTANT_FLAGS), module_number TSRMLS_CC)
+#define MYREGISTER_STRING_CONSTANT(name, sval, slen)	zend_register_stringl_constant(PSTR_STRVAL(name), PSTR_STRLEN(name)+1, (sval), (slen), (CONSTANT_FLAGS), module_number TSRMLS_CC)
 
-#define UNREGISTER_CONSTANT(name) unregister_constant(name)
-#define UNREGISTER_GLOBAL_VAR(name) zend_hash_del(HT_SYMBOL_TABLE, (name), strlen(name)+1)
+#define UNREGISTER_CONSTANT(name) unregister_constant(&(name))
+#define UNREGISTER_GLOBAL_VAR(name) zend_hash_del(HT_SYMBOL_TABLE, PSTR_STRVAL(name), PSTR_STRLEN(name)+1)
+#define MY_SET_GLOBAL_VAR(name, pzval) ZEND_SET_GLOBAL_VAR_WITH_LENGTH(PSTR_STRVAL(name), PSTR_STRLEN(name)+1, pzval, 1, 0);
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -83,14 +87,14 @@ function_entry pwee_functions[] = {
  */
 zend_module_entry pwee_module_entry = {
 	STANDARD_MODULE_HEADER,
-	"pwee",
+	PHP_PWEE_EXTNAME,
 	pwee_functions,
 	PHP_MINIT(pwee),
 	PHP_MSHUTDOWN(pwee),
 	PHP_RINIT(pwee),
 	PHP_RSHUTDOWN(pwee),
 	PHP_MINFO(pwee),
-    "0.1",
+    PHP_PWEE_EXTVER,
 	STANDARD_MODULE_PROPERTIES
 };
 /* }}} */
@@ -113,7 +117,9 @@ PHP_INI_MH(OnUpdateUserConfPath)
 {
 	if (PWEE_G(g_bAllowUserEnv) && (NULL != new_value) && (*new_value))
 	{
-		return activateUserEnvironment(new_value);
+		pweeString strFilename;
+		PSTR_SETVALUEL(strFilename, new_value, new_value_length, 1); // callee will free
+		return activateUserEnvironment(&strFilename);
 	}
 	else
 	{
@@ -217,24 +223,18 @@ static void register_bool_constant(char *name, uint name_len, long lval, int fla
    You better know what you're working with because it doesn't care about
    overstepping its bounds. The the terminating `\0' character is always
    included in the overwrite. */
-static int overwrite_string_constant_mem(char *name, char* strval TSRMLS_DC)
+static int overwrite_string_constant_mem(const pweeString* pstrName, char* strval, int slen TSRMLS_DC)
 {
 	int retval = FAILURE;
-	int name_len = strlen(name);
-	char *lookup_name = estrndup(name, name_len);
 	zend_constant* pc = NULL;
 
-	zend_str_tolower(lookup_name, name_len);
-
 	// All of our constants are CONST_CS so we just skip that check
-	if (SUCCESS == zend_hash_find(HT_CONSTANTS, lookup_name, name_len+1, (void **) &pc))
+	if (SUCCESS == zend_hash_find(HT_CONSTANTS, PSTR_STRVAL_P(pstrName), PSTR_STRLEN_P(pstrName)+1, (void **) &pc))
 	{
-		pc->value.value.str.len = strlen(strval);
+		pc->value.value.str.len = slen;
 		memcpy(pc->value.value.str.val, strval, pc->value.value.str.len+1);
 		retval = SUCCESS;
 	}
-
-	efree(lookup_name);
 
 	return retval;
 }
@@ -242,22 +242,16 @@ static int overwrite_string_constant_mem(char *name, char* strval TSRMLS_DC)
 
 /* {{{ unregister_constant
    Zend doesn't have a function to unregister constants (at this time anyway) */
-static int unregister_constant(const char *name)
+static int unregister_constant(const pweeString* pstrName)
 {
 	int retval = FAILURE;
-	int name_len = strlen(name);
-	char *lookup_name = estrndup(name, name_len);
 	zend_constant* pc = NULL;
 
-	zend_str_tolower(lookup_name, name_len);
-
 	// All of our constants are CONST_CS so we just skip that check
-	if (SUCCESS == zend_hash_find(HT_CONSTANTS, lookup_name, name_len+1, (void **) &pc))
+	if (SUCCESS == zend_hash_find(HT_CONSTANTS, PSTR_STRVAL_P(pstrName), PSTR_STRLEN_P(pstrName)+1, (void **) &pc))
 	{
-		retval = zend_hash_del(HT_CONSTANTS, lookup_name, name_len+1);
+		retval = zend_hash_del(HT_CONSTANTS, PSTR_STRVAL_P(pstrName), PSTR_STRLEN_P(pstrName)+1);
 	}
-
-	efree(lookup_name);
 
 	return retval;
 }
@@ -277,6 +271,8 @@ PHP_MINIT_FUNCTION(pwee)
 
 	REGISTER_INI_ENTRIES();
 
+	REGISTER_STRING_CONSTANT("PWEE_VERSION", PHP_PWEE_EXTVER, CONST_CS | CONST_PERSISTENT);
+	
 	// Cache the list of active interfaces
 	ifcache_enuminterfaces(PWEE_G(g_pIfCache));
 
@@ -329,7 +325,9 @@ PHP_RINIT_FUNCTION(pwee)
 	}
 
 	if (zend_hash_num_elements(&PWEE_G(g_htSaveVariables)))
+	{
 		php_error(E_ERROR, "Why are there variables in the saved variable cache?");
+	}
 
 	incrementExecutorRequestUID(PWEE_G(g_pRequestUIDValue));
 
@@ -378,7 +376,8 @@ PHP_MINFO_FUNCTION(pwee)
 	char sz[32];
 
 	php_info_print_table_start();
-	php_info_print_table_row(2, "Environment extensions", "enabled");
+	php_info_print_table_row(2, "Pwee support", "enabled");
+	php_info_print_table_row(2, "Extension version", PHP_PWEE_EXTVER);
 
 	if (PWEE_G(g_bExposeEnv))
 	{
@@ -510,19 +509,19 @@ void printEnvironmentInfo(confEnvironment* pEnv)
 
 				php_info_print_table_start();
 
-				php_info_print_table_colspan_header(3, (pApp->pszName[0]) ? pApp->pszName : "(Unnamed)");
+				php_info_print_table_colspan_header(3, PSTR_STRLEN(pApp->strAppName) ? PSTR_STRVAL(pApp->strAppName) : "(Unnamed)");
 				php_info_print_table_header(3, "Name", "Value", "Scope");
 
 				for (pValue=pApp->pConstants; NULL != pValue; pValue=pValue->pNext)
 				{
-					php_info_print_table_row(3, pValue->pszName,
+					php_info_print_table_row(3, PSTR_STRVAL(pValue->strValueName),
 						confValue_getValueAsString(pValue),
 						"constant");
 				}
 
 				for (pValue=pApp->pVariables; NULL != pValue; pValue=pValue->pNext)
 				{
-					php_info_print_table_row(3, pValue->pszName,
+					php_info_print_table_row(3, PSTR_STRVAL(pValue->strValueName),
 						confValue_getValueAsString(pValue),
 						scopeToString(pValue->scope));
 				}
@@ -545,10 +544,12 @@ int addNetConstantsToEnvironment(confEnvironment* pEnv)
 		char szconstant[128];
 		int setexternaladdr = 0;
 		char myname[MAXHOSTNAMELEN+1];
+		pweeString strName;
+		pweeString strValue;
 		confApplication* pApp = confApplication_new();
 
-		pApp->pszName = strdup("NETWORK");
-		pApp->pszNamespace = strdup(PWEE_G(g_pszNetConstantPrefix));
+		PSTR_SETVALUEL(pApp->strAppName, "NETWORK", sizeof("NETWORK")-1, 1);
+		PSTR_SETVALUE(pApp->strNamespace, PWEE_G(g_pszNetConstantPrefix), 1);
 		pApp->bUpperCaseConstants = 1;
 
 		// Register constants with the addresses of each interface.
@@ -556,14 +557,17 @@ int addNetConstantsToEnvironment(confEnvironment* pEnv)
 		{
 			confValue* pValue = confValue_new();
 			sprintf(szconstant, "IFADDR_%.16s", pifcache->iflist[i].szifname);
-			confValue_setValue(pValue, szconstant, pifcache->iflist[i].szifaddr, "string", 1, pApp);
+			PSTR_SETVALUE(strName, szconstant, 0);
+			PSTR_SETVALUE(strValue, pifcache->iflist[i].szifaddr, 0);
+			confValue_setValue(pValue, &strName, &strValue, "string", 1, pApp);
 			confApplication_addValue(pApp, pValue);
 
 			// Register a constant with the address of the first interface with an external address.
 			if (!setexternaladdr && (0 != strcmp("127.0.0.1", pifcache->iflist[i].szifaddr)))
 			{
 				confValue* pValue = confValue_new();
-				confValue_setValue(pValue, "IFADDR", pifcache->iflist[i].szifaddr, "string", 1, pApp);
+				PSTR_SETVALUEL(strName, "IFADDR", sizeof("IFADDR")-1, 0);
+				confValue_setValue(pValue, &strName, &strValue, "string", 1, pApp);
 				confApplication_addValue(pApp, pValue);
 				setexternaladdr = 1;
 			}
@@ -573,7 +577,9 @@ int addNetConstantsToEnvironment(confEnvironment* pEnv)
 		if (NULL != gethostnamepart(myname, sizeof(myname), "f"))
 		{
 			confValue* pValue = confValue_new();
-			confValue_setValue(pValue, "HOSTNAME", myname, "string", 1, pApp);
+			PSTR_SETVALUEL(strName, "HOSTNAME", sizeof("HOSTNAME")-1, 0);
+			PSTR_SETVALUE(strValue, myname, 0);
+			confValue_setValue(pValue, &strName, &strValue, "string", 1, pApp);
 			confApplication_addValue(pApp, pValue);
 		}
 
@@ -581,7 +587,9 @@ int addNetConstantsToEnvironment(confEnvironment* pEnv)
 		if (NULL != gethostnamepart(myname, sizeof(myname), "s"))
 		{
 			confValue* pValue = confValue_new();
-			confValue_setValue(pValue, "HOSTSHORTNAME", myname, "string", 1, pApp);
+			PSTR_SETVALUEL(strName, "HOSTSHORTNAME", sizeof("HOSTSHORTNAME")-1, 0);
+			PSTR_SETVALUE(strValue, myname, 0);
+			confValue_setValue(pValue, &strName, &strValue, "string", 1, pApp);
 			confApplication_addValue(pApp, pValue);
 		}
 
@@ -589,7 +597,9 @@ int addNetConstantsToEnvironment(confEnvironment* pEnv)
 		if (NULL != gethostnamepart(myname, sizeof(myname), "d"))
 		{
 			confValue* pValue = confValue_new();
-			confValue_setValue(pValue, "HOSTDOMAIN", myname, "string", 1, pApp);
+			PSTR_SETVALUEL(strName, "HOSTDOMAIN", sizeof("HOSTDOMAIN")-1, 0);
+			PSTR_SETVALUE(strValue, myname, 0);
+			confValue_setValue(pValue, &strName, &strValue, "string", 1, pApp);
 			confApplication_addValue(pApp, pValue);
 		}
 
@@ -616,16 +626,16 @@ int registerEnvironmentConstants(confEnvironment* pEnv, int module_number)
 				switch (pValue->type)
 				{
 				case IS_STRING:
-					MYREGISTER_STRING_CONSTANT(pValue->pszName, pValue->value.str.val);
+					MYREGISTER_STRING_CONSTANT(pValue->strValueName, pValue->value.str.val, pValue->value.str.len);
 					break;
 				case IS_LONG:
-					MYREGISTER_LONG_CONSTANT(pValue->pszName, pValue->value.lval);
+					MYREGISTER_LONG_CONSTANT(pValue->strValueName, pValue->value.lval);
 					break;
 				case IS_BOOL:
-					MYREGISTER_BOOL_CONSTANT(pValue->pszName, pValue->value.lval);
+					MYREGISTER_BOOL_CONSTANT(pValue->strValueName, pValue->value.lval);
 					break;
 				case IS_DOUBLE:
-					MYREGISTER_DOUBLE_CONSTANT(pValue->pszName, pValue->value.dval);
+					MYREGISTER_DOUBLE_CONSTANT(pValue->strValueName, pValue->value.dval);
 					break;
 				default:
 					php_error(E_ERROR, "Undefined environment variable value type");
@@ -685,7 +695,7 @@ int registerEnvironmentVariables(confEnvironment* pEnv, int module_number)
 					}
 				}
 
-				ZEND_SET_GLOBAL_VAR(pValue->pszName, pz);
+				MY_SET_GLOBAL_VAR(pValue->strValueName, pz);
 			}
 		}
 	}
@@ -705,8 +715,8 @@ int unregisterEnvironmentConstants(confEnvironment* pEnv)
 
 		for (pApp=pEnv->pApps; NULL != pApp; pApp=pApp->pNext)
 			for (pValue=pApp->pConstants; NULL != pValue; pValue=pValue->pNext)
-				if (SUCCESS != UNREGISTER_CONSTANT(pValue->pszName))
-					php_error(E_WARNING, "Failed to remove %s from the constants table", pValue->pszName);
+				if (SUCCESS != UNREGISTER_CONSTANT(pValue->strValueName))
+					php_error(E_WARNING, "Failed to remove %s from the constants table", PSTR_STRVAL(pValue->strValueName));
 	}
 
 	return SUCCESS;
@@ -724,8 +734,8 @@ int unregisterEnvironmentVariables(confEnvironment* pEnv, int module_number)
 
 		for (pApp=pEnv->pApps; NULL != pApp; pApp=pApp->pNext)
 			for (pValue=pApp->pVariables; NULL != pValue; pValue=pValue->pNext)
-				if (SUCCESS != UNREGISTER_GLOBAL_VAR(pValue->pszName))
-					php_error(E_WARNING, "Failed to remove %s from the symbol table", pValue->pszName);
+				if (SUCCESS != UNREGISTER_GLOBAL_VAR(pValue->strValueName))
+					php_error(E_WARNING, "Failed to remove %s from the symbol table", PSTR_STRVAL(pValue->strValueName));
 	}
 
 	return SUCCESS;
@@ -745,13 +755,13 @@ int saveEnvironmentVariables(HashTable* ht)
 		zval** ppz = NULL;
 
 		if (SUCCESS == zend_hash_find(HT_SYMBOL_TABLE,
-			(*ppValue)->pszName, strlen((*ppValue)->pszName)+1, (void**)&ppz))
+			PSTR_STRVAL((*ppValue)->strValueName), PSTR_STRLEN((*ppValue)->strValueName)+1, (void**)&ppz))
 		{
 			confValue_setValueFromZval(*ppValue, *ppz);
 		}
 		else
 		{
-			php_error(E_ERROR, "Failed to save value for %s, it's not in the symbol table", (*ppValue)->pszName);
+			php_error(E_ERROR, "Failed to save value for %s, it's not in the symbol table", PSTR_STRVAL((*ppValue)->strValueName));
 		}
 	}
 
@@ -767,10 +777,12 @@ int addExecutorConstantsToEnvironment(confEnvironment* pEnv, int module_number)
 {
 	if (NULL != pEnv)
 	{
+		pweeString strName;
+		pweeString strValue;
 		confApplication* pApp = confApplication_new();
 
-		pApp->pszName = strdup("EXECUTOR");
-		pApp->pszNamespace = strdup("EXECUTOR");
+		PSTR_SETVALUEL(pApp->strAppName, "EXECUTOR", sizeof("EXECUTOR")-1, 1);
+		PSTR_SETVALUEL(pApp->strNamespace, "EXECUTOR", sizeof("EXECUTOR")-1, 1);
 		pApp->bUpperCaseConstants = 1;
 
 		if (PWEE_G(g_bRegisterUIDConstants))
@@ -781,21 +793,25 @@ int addExecutorConstantsToEnvironment(confEnvironment* pEnv, int module_number)
 			pwee_uuid_generate(szUID);
 
 			pValue = confValue_new();
-			confValue_setValue(pValue, "UID", szUID, "string", 1, pApp);
+			PSTR_SETVALUEL(strName, "UID", sizeof("UID")-1, 0);
+			PSTR_SETVALUE(strValue, szUID, 0);
+			confValue_setValue(pValue, &strName, &strValue, "string", 1, pApp);
 			confApplication_addValue(pApp, pValue);
 
-			MYREGISTER_STRING_CONSTANT(pValue->pszName, pValue->value.str.val);
+			MYREGISTER_STRING_CONSTANT(pValue->strValueName, pValue->value.str.val, pValue->value.str.len);
 
 			// We'll set the REQUEST_UID later, this is just a placeholder
 			memset(szUID, '*', sizeof(szUID));
 			szUID[sizeof(szUID)-1] = '\0';
 
 			pValue = confValue_new();
-			confValue_setValue(pValue, "REQUEST_UID", szUID, "string", 1, pApp);
+			PSTR_SETVALUEL(strName, "REQUEST_UID", sizeof("REQUEST_UID")-1, 0);
+			PSTR_SETVALUE(strValue, szUID, 0);
+			confValue_setValue(pValue, &strName, &strValue, "string", 1, pApp);
 			confApplication_addValue(pApp, pValue);
 			PWEE_G(g_pRequestUIDValue) = pValue;
 
-			MYREGISTER_STRING_CONSTANT(pValue->pszName, pValue->value.str.val);
+			MYREGISTER_STRING_CONSTANT(pValue->strValueName, pValue->value.str.val, pValue->value.str.len);
 		}
 
 		confEnvironment_addApplication(pEnv, pApp, 1);
@@ -841,7 +857,8 @@ int incrementExecutorRequestUID(confValue* pValue)
 		// Zend just keeps a pointer to the original value we allocated
 		// for the constant. Overwriting the constant value directly
 		// updates the values for both Zend and our internal structure.
-		overwrite_string_constant_mem(pValue->pszName, szUID);
+		if (SUCCESS != overwrite_string_constant_mem(&(pValue->strValueName), szUID, strlen(szUID)))
+			php_error(E_ERROR, "incrementExecutorRequestUID(): Failed to increment %s", PSTR_STRVAL(pValue->strValueName));
 	}
 
 	return SUCCESS;
@@ -850,30 +867,26 @@ int incrementExecutorRequestUID(confValue* pValue)
 
 /* {{{ activateUserEnvironment
    Setup or tear down the active user environment. */
-int activateUserEnvironment(const char* new_value)
+int activateUserEnvironment(pweeString* pstrFilename)
 {
 	int retval = SUCCESS;
 	confEnvironment* pEnv = NULL;
 
-	if ((NULL != new_value) && (*new_value))
+	if (pstrFilename && PSTR_STRVAL_P(pstrFilename) && PSTR_STRLEN_P(pstrFilename))
 	{
 		int bAddEnvToHash = 0;
-		int nFilenameLen = 0;
 		char* pszSerial = NULL;
-		char* pszFilename = strdup(new_value);
 		confEnvironment** ppEnv = NULL;
 
 		// Strip the serial tag from the end of the path
-		pszSerial = strrchr(pszFilename, ':');
+		pszSerial = strrchr(PSTR_STRVAL_P(pstrFilename), ':');
 		if (NULL != pszSerial)
 		{
 			*pszSerial = '\0';
 			pszSerial++;
 		}
 
-		nFilenameLen = strlen(pszFilename);
-
-		if (SUCCESS == zend_hash_find(&PWEE_G(g_htUserEnv), pszFilename, nFilenameLen+1, (void**)&ppEnv))
+		if (SUCCESS == zend_hash_find(&PWEE_G(g_htUserEnv), PSTR_STRVAL_P(pstrFilename), PSTR_STRLEN_P(pstrFilename)+1, (void**)&ppEnv))
 		{
 			pEnv = *ppEnv;
 
@@ -888,7 +901,7 @@ int activateUserEnvironment(const char* new_value)
 					PWEE_G(g_pLastUserEnv) = NULL;
 				}
 
-				if (SUCCESS != zend_hash_del(&PWEE_G(g_htUserEnv), pszFilename, nFilenameLen+1))
+				if (SUCCESS != zend_hash_del(&PWEE_G(g_htUserEnv), PSTR_STRVAL_P(pstrFilename), PSTR_STRLEN_P(pstrFilename)+1))
 					php_error(E_ERROR, "Failed to delete environment from user environment cache");
 
 				pEnv = NULL;
@@ -904,11 +917,11 @@ int activateUserEnvironment(const char* new_value)
 		{
 			pEnv = confEnvironment_new();
 
-			retval = confEnvironment_parseFile(pEnv, pszFilename, pszSerial);
+			retval = confEnvironment_parseFile(pEnv, PSTR_STRVAL_P(pstrFilename), pszSerial);
 
 			if (SUCCESS == retval)
 			{
-				retval = zend_hash_add(&PWEE_G(g_htUserEnv), pszFilename, nFilenameLen+1, &pEnv, sizeof(confEnvironment*), NULL);
+				retval = zend_hash_add(&PWEE_G(g_htUserEnv), PSTR_STRVAL_P(pstrFilename), PSTR_STRLEN_P(pstrFilename)+1, &pEnv, sizeof(confEnvironment*), NULL);
 				if (SUCCESS != retval)
 					php_error(E_ERROR, "Failed to add environment to user environment cache");
 			}
@@ -920,7 +933,7 @@ int activateUserEnvironment(const char* new_value)
 			}
 		}
 
-		free(pszFilename);
+		PSTR_FREE(*pstrFilename); // caller dup'd the string, we're responsible for it
 	}
 
 	PWEE_G(g_pActiveUserEnv) = pEnv;

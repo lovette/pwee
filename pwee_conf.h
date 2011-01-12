@@ -28,7 +28,7 @@
 #define PWEE_VALUESCOPE_EXECUTOR	1
 
 typedef struct _confValue {
-	char* pszName;					// Variable name
+	pweeString strValueName;		// Variable name
 	zend_uchar type;				// Variable type (IS_LONG, IS_DOUBLE, IS_BOOL, IS_STRING)
 	zvalue_value value;				// Variable value
 	zend_bool bConstant;			// Is this a variable or constant value?
@@ -37,8 +37,8 @@ typedef struct _confValue {
 } confValue;
 
 typedef struct _confApplication {
-	char* pszName;					// Application name
-	char* pszNamespace;				// Application variable and constant name prefix
+	pweeString strAppName;			// Application name
+	pweeString strNamespace;		// Application variable and constant name prefix
 	confValue* pVariables;			// First variable - one list for each PWEE_VALUESCOPE
 	confValue* pConstants;			// First constant
 	zend_bool bUpperCaseConstants;	// Do we uppercase constants?
@@ -62,7 +62,7 @@ confValue* confValue_new();
 void confValue_delete(confValue** ppThis);
 void confValue_ctor(confValue* pThis);
 void confValue_dtor(confValue* pThis);
-int confValue_setValue(confValue* pThis, char* name, char* value, char* type, zend_bool bConstant, confApplication* pApp);
+int confValue_setValue(confValue* pThis, pweeString* pstrName, pweeString* pstrValue, const char* type, zend_bool bConstant, confApplication* pApp);
 int confValue_setValueFromZval(confValue* pThis, zval* pz);
 char* confValue_getValueAsString(confValue* pThis);
 char* confValue_getTypeAsString(confValue* pThis);

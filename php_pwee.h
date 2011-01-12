@@ -37,6 +37,7 @@ extern zend_module_entry pwee_module_entry;
 #include "TSRM.h"
 #endif
 
+#include "pwee_string.h"
 #include "pwee_if.h"
 #include "pwee_conf.h"
 #include "pwee_uuid.h"
