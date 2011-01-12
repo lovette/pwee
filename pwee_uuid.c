@@ -86,7 +86,7 @@ char* pwee_uuid_generate(char* out)
    uuid_generate(uu);
    uuid_unparse(uu, out);
 #else
-   PHP_STRLCPY(out, "TODO", UUID_LEN+1, strlen("TODO"));
+   PHP_STRLCPY(out, "TODO", UUID_LEN+1, sizeof("TODO")-1);
 #endif
 
    return out;
