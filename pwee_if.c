@@ -144,7 +144,7 @@ char* getifhwaddress(const char* ifname, char* ifhwaddr)
 	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
 	if (fd > 0)
 	{
-		if (0 == ioctl(fd, SIOCGIFHWADDR, (int) &ifr))
+		if (0 == ioctl(fd, SIOCGIFHWADDR, &ifr))
 		{
 			unsigned char* a = (unsigned char *) &ifr.ifr_hwaddr.sa_data;
 			if (a[0] + a[1] + a[2] + a[3] + a[4] + a[5])
@@ -181,7 +181,7 @@ char* getifaddress(const char* ifname, char* ifaddr, int ifaddrlen)
 	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
 	if (fd > 0)
 	{
-		if (0 == ioctl(fd, SIOCGIFADDR, (int) &ifr))
+		if (0 == ioctl(fd, SIOCGIFADDR, &ifr))
 		{
 			char* ntoa = inet_ntoa(((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr);
 			if (NULL != ntoa)
