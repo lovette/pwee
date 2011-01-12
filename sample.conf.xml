@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<!DOCTYPE Environments
+[
+	<!ELEMENT Environments ((Package|Application)+)>
+	<!ELEMENT Application ((Server|Constants|Variables)+)>
+		<!ATTLIST Application name CDATA #REQUIRED>
+		<!ATTLIST Application namespace CDATA #REQUIRED>
+		<!ATTLIST Application comment CDATA #IMPLIED>
+	<!ELEMENT Package ((Server|Constants|Variables)+)>
+		<!ATTLIST Package name CDATA #REQUIRED>
+		<!ATTLIST Package namespace CDATA #REQUIRED>
+		<!ATTLIST Package comment CDATA #IMPLIED>
+	<!ELEMENT Server ((Constants|Variables)+)>
+		<!ATTLIST Server ip CDATA #IMPLIED>
+		<!ATTLIST Server interface CDATA #IMPLIED>
+		<!ATTLIST Server hostname CDATA #IMPLIED>
+		<!ATTLIST Server domain CDATA #IMPLIED>
+		<!ATTLIST Server comment CDATA #IMPLIED>
+	<!ELEMENT Constants (Constant+)>
+		<!ATTLIST Constants prefix CDATA #IMPLIED>
+		<!ATTLIST Constants comment CDATA #IMPLIED>
+	<!ELEMENT Constant EMPTY>
+		<!ATTLIST Constant name CDATA #REQUIRED>
+		<!ATTLIST Constant value CDATA #REQUIRED>
+		<!ATTLIST Constant type (string|long|boolean|double) "string">
+		<!ATTLIST Constant comment CDATA #IMPLIED>
+	<!ELEMENT Variables (Variable+)>
+		<!ATTLIST Variables prefix CDATA #IMPLIED>
+		<!ATTLIST Variables scope (request|executor) "request">
+		<!ATTLIST Variables comment CDATA #IMPLIED>
+	<!ELEMENT Variable EMPTY>
+		<!ATTLIST Variable name CDATA #REQUIRED>
+		<!ATTLIST Variable value CDATA #REQUIRED>
+		<!ATTLIST Variable type (string|long|boolean|double) "string">
+		<!ATTLIST Variable scope (request|executor) #IMPLIED>
+		<!ATTLIST Variable comment CDATA #IMPLIED>
+]>
+<Environments>
+	<Application name="Test" namespace="test" comment="This is a test">
+		<Constants>
+			<Constant name="globalconstant1" value="/home/webapp/" />
+			<Constant name="globalconstant2" value="/home/webapp/classes/" />
+		</Constants>
+		<Variables>
+			<Variable name="globalvariable1" value="10" type="long" />
+			<Variable name="globalvariable2" value="1.234" type="double" scope="executor" />
+		</Variables>
+		<Server ip="192.168." interface="eth0">
+			<Constants>
+				<Constant name="constant1" value="true" type="boolean"/>
+				<Constant name="constant2" value="2" type="long" />
+				<Constant name="constant3" value="test" type="string" />
+				<Constant name="constant4" value="2.345" type="double" />
+			</Constants>
+			<Variables>
+				<Variable name="variable1" value="10" type="long" />
+				<Variable name="variable2" value="1.234" type="double" scope="executor" />
+				<Variable name="variable3" value="true" type="boolean" />
+				<Variable name="variable4" value="false" type="boolean" />
+				<Variable name="variable5" value="test" type="string" />
+				<Variable name="variable6" value="1-2-3" scope="executor" />
+			</Variables>
+		</Server>
+	</Application>
+</Environments>
+

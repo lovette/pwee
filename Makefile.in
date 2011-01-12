@@ -1,0 +1,8 @@
+# $Id$
+
+LTLIBRARY_NAME        = libpwee.la
+LTLIBRARY_SOURCES     = pwee.c pwee_conf.c pwee_if.c pwee_uuid.c
+LTLIBRARY_SHARED_NAME = pwee.la
+LTLIBRARY_SHARED_LIBADD  = $(PWEE_SHARED_LIBADD)
+
+include $(top_srcdir)/build/dynlib.mk
