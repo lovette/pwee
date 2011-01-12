@@ -17,6 +17,10 @@
 * Add simple demo script
 * Add simple regression test
 
+=== 1.5.1 (January 12, 2011)
+
+* Import project to GitHub; no code changes
+
 ---
 
 You can see the full commit history on GitHub: https://github.com/lovette/pwee/commits/
