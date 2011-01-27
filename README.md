@@ -31,6 +31,15 @@ For the best performance impact it makes sense to link Pwee directly into PHP.
 	% ./buildconf
 	% ./configure --with-pwee [other options]
 
+### Shared Library (DSO)
+
+	% tar xvfz pwee.tar.gz -C /usr/local/src/pwee
+	% cd /usr/local/src/pwee
+	% phpize
+	% ./configure --with-pwee=shared [other options]
+	% make
+	% make install
+
 ### Shared Library
 
 	% tar xvfz pwee.tar.gz -C /usr/local/src/php/ext
@@ -121,7 +130,7 @@ Pwee defines some constants itself.
   depends on your server network configuration.  Under Linux you can see the
   short hostname for your server using the -s option to the <i>hostname</i> command.
 * `SERVER_HOSTDOMAIN` - Defines the server domain name. The actual value depends
-  on your server network configuration.  nder Linux you can see the short hostname
+  on your server network configuration.  Under Linux you can see the short hostname
   for your server using the -d option to the <i>hostname</i> command.
 
 
@@ -270,7 +279,7 @@ script execution.
 #### Variable
 
 Variable elements allow you to define variable values that can be changed during
-script execution. Dending on the scope of the variable the lifetime of the
+script execution. Depending on the scope of the variable the lifetime of the
 variable can be changed.
 
 * `name` - Each variable must be named. The actual name of the variable accessible
@@ -283,7 +292,7 @@ variable can be changed.
 * `scope` - Scope controls the lifetime of variable. The scope can be request or executor.
   If the variable has request scope the value of the variable will be reset for
   each request. This is the default scope. The more interesting scope is executor.
-  This scope allows the variable to retain it's value across multiple requests.
+  This scope allows the variable to retain its value across multiple requests.
   This behavior is greatly dependent on how PHP is invoked. For example,
   if you use Apache with mod_php each individual Apache process is considered an
   executor. Requests handled by each executor will be able to access and modify the
@@ -382,7 +391,7 @@ Almost every script contains include and require statements. Take the simple scr
 
 The question is where exactly is config.inc? If PHP doesn't find this script in the local
 directory it's going to search your include path. What if you have multiple projects and each
-has it's own config.inc? You could add more path information.
+has its own config.inc? You could add more path information.
 
 	require_once("projectA/config.inc");
 

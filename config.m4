@@ -27,7 +27,7 @@ if test "$PHP_PWEE" != "no"; then
   dnl If compiled without --with-dom option, we need to include libxml ourself
   dnl
  
-  if test "$PHP_DOM" = "no"; then
+  if test -z "$PHP_DOM" || test "$PHP_DOM" = "no"; then
     PWEE_XML_DIR_ADD=""
     
     for i in /usr/local /usr; do
