@@ -47,7 +47,7 @@ static void createVarNameWithPrefix(const pweeString* pstrName, const pweeString
 		{
 			PSTR_STRLEN_P(pstrVarName) = PSTR_STRLEN_P(pstrPrefix) + nSeparatorLen + PSTR_STRLEN_P(pstrName);
 			PSTR_STRVAL_P(pstrVarName) = calloc(PSTR_STRLEN_P(pstrVarName) + 1, sizeof(char));
-			
+
 			PSTR_APPEND_PSTR(*pstrVarName, *pstrPrefix);
 			PSTR_APPEND_SZ(*pstrVarName, pszSeparator);
 			PSTR_APPEND_PSTR(*pstrVarName, *pstrName);
@@ -56,7 +56,7 @@ static void createVarNameWithPrefix(const pweeString* pstrName, const pweeString
 		{
 			PSTR_STRLEN_P(pstrVarName) = PSTR_STRLEN_P(pstrPrefix) + PSTR_STRLEN_P(pstrName);
 			PSTR_STRVAL_P(pstrVarName) = calloc(PSTR_STRLEN_P(pstrVarName) + 1, sizeof(char));
-			
+
 			PSTR_APPEND_PSTR(*pstrVarName, *pstrPrefix);
 			PSTR_APPEND_PSTR(*pstrVarName, *pstrName);
 		}
@@ -200,7 +200,7 @@ int confValue_setValue(confValue* pThis, pweeString* pstrName, pweeString* pstrV
 		pThis->type = IS_DOUBLE;
 		pThis->value.dval = strtod(PSTR_STRVAL_P(pstrValue), NULL);
 	}
-	
+
 	if (0 == pThis->type)
 	{
 		if (bConstant)
@@ -603,7 +603,7 @@ int parseServer(xmlDocPtr doc, xmlNodePtr cur, confApplication* pApp)
 confApplication* parseApplication(xmlDocPtr doc, xmlNodePtr cur)
 {
 	xmlChar* name = xmlGetProp(cur, "name");
-	xmlChar* ns = xmlGetProp(cur, "namespace");	
+	xmlChar* ns = xmlGetProp(cur, "namespace");
 	confApplication* pApp = confApplication_new();
 
 	PSTR_SETVALUE(pApp->strAppName, (NULL != name) ? (char*)name : "", 1);
@@ -790,6 +790,7 @@ int confEnvironment_parseFile(confEnvironment* pThis, const char* pszFilename, c
 {
 	xmlDocPtr doc = NULL;
     xmlNodePtr cur = NULL;
+	xmlParserInputBufferCreateFilenameFunc oldParser = NULL;
 
 	LIBXML_TEST_VERSION
 	xmlKeepBlanksDefault(0);
@@ -799,7 +800,16 @@ int confEnvironment_parseFile(confEnvironment* pThis, const char* pszFilename, c
 	if (NULL == pThis->pszSerial)
 		pThis->pszSerial = strdup((pszSerial) ? pszSerial : "");
 
+#if PHP_VERSION_ID < 50400
 	doc = xmlParseFile(pThis->pszFilename);
+#else
+	/* PHP 5.4 started using streams for IO, which, at least through PHP 5.4.3,
+	causes a segmentation fault during xmlParseFile */
+	oldParser = xmlParserInputBufferCreateFilenameDefault(NULL);
+	doc = xmlParseFile(pThis->pszFilename);
+	xmlParserInputBufferCreateFilenameDefault(oldParser);
+#endif
+
 	if (doc == NULL)
 	{
 		php_error(E_ERROR, "Failed to parse file (%s)", pThis->pszFilename);

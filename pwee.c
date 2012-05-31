@@ -75,7 +75,7 @@ ZEND_DECLARE_MODULE_GLOBALS(pwee)
 /* {{{ pwee_functions[]
  *
  */
-function_entry pwee_functions[] = {
+static zend_function_entry pwee_functions[] = {
 	PHP_FE(pwee_info,	        NULL)
 //	PHP_FE(pwee_getifaddress,	NULL)
 //	PHP_FE(pwee_listinterfaces,	NULL)
@@ -206,7 +206,7 @@ static void php_pwee_globals_dtor(zend_pwee_globals *pwee_globals)
 static void register_bool_constant(char *name, uint name_len, long lval, int flags, int module_number TSRMLS_DC)
 {
 	zend_constant c;
-	
+
 	c.value.type = IS_BOOL;
 	c.value.value.lval = lval;
 	c.flags = flags;
@@ -272,7 +272,7 @@ PHP_MINIT_FUNCTION(pwee)
 	REGISTER_INI_ENTRIES();
 
 	REGISTER_STRING_CONSTANT("PWEE_VERSION", PHP_PWEE_EXTVER, CONST_CS | CONST_PERSISTENT);
-	
+
 	// Cache the list of active interfaces
 	ifcache_enuminterfaces(PWEE_G(g_pIfCache));
 
@@ -421,13 +421,13 @@ PHP_FUNCTION(pwee_getifaddress)
 	char* ifaddr = NULL;
 	char myaddress[IFINFONAME+1];
 
-	if ((ZEND_NUM_ARGS() != 1) || (zend_get_parameters_ex(1, &z_ifname) != SUCCESS))
+	if ((ZEND_NUM_ARGS() != 1) || (zend_parse_parameters(1 TSRMLS_CC, "z", &z_ifname) != SUCCESS))
 	{
 		WRONG_PARAM_COUNT;
 	}
 
 	convert_to_string_ex(z_ifname);
-	
+
 	ifaddr = getifaddress(Z_STRVAL_PP(z_ifname), myaddress, sizeof(myaddress));
 	if (NULL == ifaddr)
 	{
@@ -450,7 +450,7 @@ PHP_FUNCTION(pwee_listinterfaces)
 
 	if (ZEND_NUM_ARGS() == 1)
 	{
-		if (zend_get_parameters_ex(1, &z_refreshcache) != SUCCESS)
+		if (zend_parse_parameters(1 TSRMLS_CC, "z", &z_refreshcache) != SUCCESS)
 			WRONG_PARAM_COUNT;
 
 		convert_to_long_ex(z_refreshcache);
