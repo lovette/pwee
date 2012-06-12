@@ -83,10 +83,27 @@ static zend_function_entry pwee_functions[] = {
 };
 /* }}} */
 
+/* {{{ php_pwee_deps[]
+  * As of PHP 5.1, interdependencies between extensions can be enforced
+  */
+#if ZEND_MODULE_API_NO >= 20050617
+static zend_module_dep pwee_deps[] = {
+	ZEND_MOD_REQUIRED("libxml")
+	ZEND_MOD_END
+};
+#endif
+/* }}} */
+
 /* {{{ pwee_module_entry
  */
 zend_module_entry pwee_module_entry = {
+#if ZEND_MODULE_API_NO >= 20050617
+	STANDARD_MODULE_HEADER_EX,
+	NULL,
+	pwee_deps,
+#else
 	STANDARD_MODULE_HEADER,
+#endif
 	PHP_PWEE_EXTNAME,
 	pwee_functions,
 	PHP_MINIT(pwee),

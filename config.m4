@@ -26,10 +26,10 @@ if test "$PHP_PWEE" != "no"; then
   dnl
   dnl If compiled without --with-dom option, we need to include libxml ourself
   dnl
- 
+
   if test -z "$PHP_DOM" || test "$PHP_DOM" = "no"; then
     PWEE_XML_DIR_ADD=""
-    
+
     for i in /usr/local /usr; do
       test -r $i/include/libxml2/libxml/tree.h && PWEE_XML_DIR=$i && PWEE_XML_DIR_ADD="/libxml2"
     done
@@ -55,7 +55,7 @@ if test "$PHP_PWEE" != "no"; then
   fi
 
   AC_CHECK_LIB(uuid, uuid_generate,
-	[AC_DEFINE(HAVE_LIBUUID,1,[ ]) 
+	[AC_DEFINE(HAVE_LIBUUID,1,[ ])
 		PHP_ADD_LIBRARY(uuid, 1, PWEE_SHARED_LIBADD)],
 	[AC_MSG_WARN(using pwee internal version of uuid_generate)])
 
@@ -67,4 +67,9 @@ if test "$PHP_PWEE" != "no"; then
 
   PHP_NEW_EXTENSION(pwee, pwee.c pwee_conf.c pwee_if.c pwee_uuid.c, $ext_shared)
   PHP_SUBST(PWEE_SHARED_LIBADD)
+
+  ifdef([PHP_ADD_EXTENSION_DEP],
+  [
+    PHP_ADD_EXTENSION_DEP(pwee, libxml)
+  ])
 fi
