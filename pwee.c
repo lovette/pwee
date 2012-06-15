@@ -73,13 +73,12 @@ int activateUserEnvironment(pweeString* pstrFilename);
 ZEND_DECLARE_MODULE_GLOBALS(pwee)
 
 /* {{{ pwee_functions[]
- *
  */
 static zend_function_entry pwee_functions[] = {
 	PHP_FE(pwee_info,	        NULL)
 //	PHP_FE(pwee_getifaddress,	NULL)
 //	PHP_FE(pwee_listinterfaces,	NULL)
-	{NULL, NULL, NULL}
+	PHP_FE_END
 };
 /* }}} */
 
